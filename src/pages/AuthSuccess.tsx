@@ -11,7 +11,7 @@ const AuthSuccess = ()=>{
         console.log(token);
         
         if (token){
-            localStorage.setItem("auth_token",token);
+            localStorage.setItem("token",token);
             navigate("/dashboard")
         } else {
             navigate("/login?error=unauthorized")
