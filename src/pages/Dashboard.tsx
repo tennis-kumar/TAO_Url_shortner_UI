@@ -1,175 +1,289 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent, useCallback, useMemo } from "react";
+import { UrlService } from "../services/urlService";
+import type { Url } from "../services/types";
+import debounce from 'lodash/debounce';
 
 const Dashboard = () => {
-  const [longUrl, setLongUrl] = useState("");
-  const [customAlias, setCustomAlias] = useState("");
-  const [topic, setTopic] = useState("");
-  const [shortUrl, setShortUrl] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [urls, setUrls] = useState([]);
-  const [editingUrl, setEditingUrl] = useState(null);
-
-  useEffect(() => {
-    fetchUrlsByTopic();
-  }, []);
+  // Form state
+  const [formData, setFormData] = useState({
+    longUrl: "",
+    customAlias: "",
+    topic: "",
+  });
+  
+  // App state
+  const [urls, setUrls] = useState<Url[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const [editingUrl, setEditingUrl] = useState<Url | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [isSuccess, setIsSuccess] = useState(true);
 
   const token = localStorage.getItem("token");
 
-  // Fetch URLs by topic
-  const fetchUrlsByTopic = async () => {
+  // Fetch URLs on mount
+  useEffect(() => {
+    fetchUrls();
+  }, []);
+
+  // Auto-hide notification
+  useEffect(() => {
+    if (showNotification) {
+      const timer = setTimeout(() => {
+        setShowNotification(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showNotification]);
+
+  // Memoized filtered URLs
+  const filteredUrls = useMemo(() => {
+    if (!searchTerm) return urls;
+    const lowerSearch = searchTerm.toLowerCase();
+    return urls.filter(
+      url =>
+        url.longUrl.toLowerCase().includes(lowerSearch) ||
+        url.shortUrl.toLowerCase().includes(lowerSearch) ||
+        (url.topic?.toLowerCase().includes(lowerSearch))
+    );
+  }, [urls, searchTerm]);
+
+  // Debounced search handler
+  const debouncedSearch = useCallback(
+    debounce((term: string) => setSearchTerm(term), 300),
+    []
+  );
+
+  const showNotificationMessage = (message: string, success: boolean = true) => {
+    setNotificationMessage(message);
+    setIsSuccess(success);
+    setShowNotification(true);
+  };
+
+  const fetchUrls = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/user/urls", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      if (response.ok) setUrls(data.urls || []);
-      else throw new Error(data.message || "Failed to fetch URLs");
+      setLoading(true);
+      const fetchedUrls = await UrlService.fetchUrls(token);
+      setUrls(fetchedUrls);
     } catch (err) {
-      setError(err.message);
+      handleError(err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle URL Shortening or Updating
-  const handleSubmit = async (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setShortUrl("");
 
-    if (editingUrl) {
-      // Only send updated fields
-      const updatedData = {};
-      if (longUrl !== editingUrl.longUrl) updatedData.longUrl = longUrl;
-      if (customAlias !== editingUrl.customAlias) updatedData.customAlias = customAlias;
-      if (topic !== editingUrl.topic) updatedData.topic = topic;
+    try {
+      if (editingUrl) {
+        // Prepare update data
+        const updates = Object.entries(formData).reduce((acc, [key, value]) => {
+          if (value !== editingUrl[key as keyof Url]) {
+            acc[key as keyof Url] = value;
+          }
+          return acc;
+        }, {} as Record<string, string>);
 
-      if (Object.keys(updatedData).length === 0) {
-        setEditingUrl(null);
-        setLoading(false);
-        return;
+        if (Object.keys(updates).length === 0) {
+          showNotificationMessage("Please make some changes before updating.", false);
+          return;
+        }
+
+        await UrlService.updateUrl(token, editingUrl.shortUrl, updates);
+        showNotificationMessage("URL updated successfully");
+      } else {
+        const shortUrl = await UrlService.createShortUrl(token, formData);
+        showNotificationMessage(`URL shortened: ${window.location.origin}/${shortUrl}`);
       }
 
-      try {
-        const response = await fetch(`http://localhost:5000/api/shorten/${editingUrl.shortUrl}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(updatedData),
-        });
-
-        if (!response.ok) throw new Error("Failed to update URL");
-        fetchUrlsByTopic();
-        setEditingUrl(null);
-      } catch (err) {
-        setError(err.message);
-      }
-    } else {
-      // Shorten new URL
-      try {
-        const response = await fetch("http://localhost:5000/api/shorten", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ longUrl, customAlias, topic }),
-        });
-
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || "Something went wrong");
-
-        setShortUrl(`${window.location.origin}/${data.shortUrl}`);
-        fetchUrlsByTopic();
-      } catch (err) {
-        setError(err.message);
-      }
+      // Reset form and refresh URLs
+      resetForm();
+      fetchUrls();
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-    setLongUrl("");
-    setCustomAlias("");
-    setTopic("");
   };
 
-  // Handle Edit Button Click
-  const handleEdit = (url) => {
-    setLongUrl(url.longUrl);
-    setCustomAlias(url.customAlias || "");
-    setTopic(url.topic || "");
+  const handleDelete = async (shortUrl: string) => {
+    if (!window.confirm("Are you sure you want to delete this URL?")) return;
+    
+    try {
+      setLoading(true);
+      await UrlService.deleteUrl(token, shortUrl);
+      setUrls(prev => prev.filter(url => url.shortUrl !== shortUrl));
+      showNotificationMessage("URL deleted successfully");
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (url: Url) => {
+    setFormData({
+      longUrl: url.longUrl,
+      customAlias: url.customAlias || "",
+      topic: url.topic || "",
+    });
     setEditingUrl(url);
   };
 
-  // Delete a URL
-  const handleDelete = async (shortUrl) => {
-    if (!window.confirm("Are you sure you want to delete this URL?")) return;
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/shorten/${shortUrl}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+  const resetForm = () => {
+    setFormData({ longUrl: "", customAlias: "", topic: "" });
+    setEditingUrl(null);
+    setError("");
+  };
 
-      if (!response.ok) throw new Error("Failed to delete URL");
-      setUrls(urls.filter((url) => url.shortUrl !== shortUrl));
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleError = (err: unknown) => {
+    const message = err instanceof Error ? err.message : "An error occurred";
+    setError(message);
+    showNotificationMessage(message, false);
   };
 
   return (
     <div className="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="text-2xl font-semibold mb-4">{editingUrl ? "Edit URL" : "Shorten a URL"}</h2>
+      {/* Notification */}
+      {showNotification && (
+        <div className={`fixed top-4 right-4 p-4 rounded shadow-lg ${
+          isSuccess ? 'bg-green-500' : 'bg-red-500'
+        } text-white transition-opacity duration-300`}>
+          {notificationMessage}
+        </div>
+      )}
+
+      <h2 className="text-2xl font-semibold mb-4">
+        {editingUrl ? "Edit URL" : "Shorten a URL"}
+      </h2>
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input type="url" placeholder="Enter long URL" value={longUrl} onChange={(e) => setLongUrl(e.target.value)} required className="w-full p-2 border rounded" />
-        <input type="text" placeholder="Custom Alias (optional)" value={customAlias} onChange={(e) => setCustomAlias(e.target.value)} className="w-full p-2 border rounded" />
-        <input type="text" placeholder="Topic (optional)" value={topic} onChange={(e) => setTopic(e.target.value)} className="w-full p-2 border rounded" />
-        <button type="submit" disabled={loading} className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
-          {loading ? "Processing..." : editingUrl ? "Update URL" : "Shorten URL"}
-        </button>
+        <input
+          type="url"
+          name="longUrl"
+          placeholder="Enter long URL"
+          value={formData.longUrl}
+          onChange={handleInputChange}
+          required
+          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <input
+          type="text"
+          name="customAlias"
+          placeholder="Custom Alias (optional)"
+          value={formData.customAlias}
+          onChange={handleInputChange}
+          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <input
+          type="text"
+          name="topic"
+          placeholder="Topic (optional)"
+          value={formData.topic}
+          onChange={handleInputChange}
+          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex-1 bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {loading ? "Processing..." : editingUrl ? "Update URL" : "Shorten URL"}
+          </button>
+          {editingUrl && (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
 
-      {error && <p className="text-red-500 mt-2">{error}</p>}
+      <div className="mt-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Your Shortened URLs</h2>
+          <input
+            type="search"
+            placeholder="Search URLs..."
+            onChange={(e) => debouncedSearch(e.target.value)}
+            className="max-w-xs p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
 
-      <h2 className="text-xl font-semibold mt-8">Your Shortened URLs</h2>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-200">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border p-2">Short URL</th>
-              <th className="border p-2">Long URL</th>
-              <th className="border p-2">Topic</th>
-              <th className="border p-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {urls.length > 0 ? (
-              urls.map((url) => (
-                <tr key={url.shortUrl} className="border-t">
-                  <td className="border p-2">
-                    <a href={`http://localhost:5000/api/shorten/${url.shortUrl}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 hover:scale-105 transition duration-150 cursor-pointer">
-                      {url.shortUrl}
-                    </a>
-                  </td>
-                  <td className="border p-2">{url.longUrl}</td>
-                  <td className="border p-2">{url.topic || "N/A"}</td>
-                  <td className="border p-2">
-                    <button onClick={() => handleEdit(url)} className="bg-yellow-500 text-white px-2 py-1 rounded mr-2 hover:scale-105 hover:bg-yellow-600 cursor-pointer">Edit</button>
-                    <button onClick={() => handleDelete(url.shortUrl)} className="bg-red-500 text-white px-2 py-1 rounded hover:scale-105 hover:bg-red-600 cursor-pointer">Delete</button>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse border border-gray-200">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border p-2">Short URL</th>
+                <th className="border p-2">Long URL</th>
+                <th className="border p-2">Topic</th>
+                <th className="border p-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUrls.length > 0 ? (
+                filteredUrls.map((url) => (
+                  <tr key={url.shortUrl} className="border-t hover:bg-gray-50">
+                    <td className="border p-2">
+                      <a
+                        href={`http://localhost:5000/api/shorten/${url.shortUrl}?t=${Date.now()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 underline hover:text-blue-800 transition-colors duration-150"
+                      >
+                        {url.shortUrl}
+                      </a>
+                    </td>
+                    <td className="border p-2 max-w-md truncate" title={url.longUrl}>
+                      {url.longUrl}
+                    </td>
+                    <td className="border p-2">{url.topic || "N/A"}</td>
+                    <td className="border p-2">
+                      <button
+                        onClick={() => handleEdit(url)}
+                        className="bg-yellow-500 text-white px-2 py-1 rounded mr-2 hover:bg-yellow-600 transition-colors duration-150"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(url.shortUrl)}
+                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition-colors duration-150"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="text-center p-4">
+                    {loading ? "Loading..." : "No URLs found."}
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4} className="text-center p-4">No URLs found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
