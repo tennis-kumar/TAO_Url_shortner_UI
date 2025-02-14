@@ -1,23 +1,22 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-const AuthSuccess = ()=>{
-    const navigate = useNavigate();
+const AuthSuccess = () => {
+  const navigate = useNavigate();
 
-    useEffect(()=>{
-        const params = new URLSearchParams(window.location.search);
-        const token = params.get("token");
-        
-        console.log(token);
-        
-        if (token){
-            localStorage.setItem("token",token);
-            navigate("/dashboard")
-        } else {
-            navigate("/login?error=unauthorized")
-        }
-    },[navigate]);
-    return <p>Loggin in....</p>
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get("token");
+
+    if (token) {
+      localStorage.setItem("token", token);
+      navigate("/app/dashboard");
+    } else {
+      navigate("/");
+    }
+  }, [navigate]);
+
+  return <div>Authenticating...</div>;
 };
 
 export default AuthSuccess;
