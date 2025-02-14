@@ -5,7 +5,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const token = localStorage.getItem("auth_token");
+      const token = localStorage.getItem("token");
       if (!token) {
         console.error("No token found");
         return;
@@ -37,7 +37,7 @@ const Dashboard = () => {
   return (
     <div>
       <h1>Dashboard</h1>
-      {user ? <p>Welcome, {user.email}</p> : <p>Loading user data...</p>}
+      {user ? <p>Welcome, {user.name}</p> : <p>Loading user data...</p>}
     </div>
   );
 };
