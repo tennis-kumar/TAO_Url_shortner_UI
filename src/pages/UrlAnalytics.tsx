@@ -15,7 +15,7 @@ const TopicAnalyticsPage = () => {
     setError(null);
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/analytics/topic/${topic}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics/topic/${topic}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error("Failed to fetch topic analytics");
@@ -111,7 +111,7 @@ const UrlAnalyticsPage = () => {
     setError(null);
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/analytics/url/${encodeURIComponent(urlInput)}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics/url/${encodeURIComponent(urlInput)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error("Failed to fetch URL analytics");

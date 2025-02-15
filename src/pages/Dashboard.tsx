@@ -161,7 +161,7 @@ const Dashboard = () => {
   };
 
   const handleRedirect = (shortUrl: string) => {
-    window.open(`http://localhost:5000/api/shorten/${shortUrl}?t=${Date.now()}`, '_blank', 'noopener,noreferrer');
+    window.open(`${import.meta.env.VITE_API_URL}/api/shorten/${shortUrl}?t=${Date.now()}`, '_blank', 'noopener,noreferrer');
   };
 
   return (

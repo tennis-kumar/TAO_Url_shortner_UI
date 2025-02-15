@@ -1,7 +1,7 @@
 // services/urlService.ts
 import { Url, ApiResponse, UpdateUrlData } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL;
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api`;
 
 export class UrlService {
   private static getHeaders(token: string | null) {
