@@ -1,7 +1,7 @@
 import { useState, useEffect, FormEvent, useCallback, useMemo } from "react";
 import { UrlService } from "../services/urlService";
 import type { Url } from "../services/types";
-import debounce from 'lodash/debounce';
+import debounce from "lodash/debounce";
 
 const Dashboard = () => {
   // Form state
@@ -10,7 +10,7 @@ const Dashboard = () => {
     customAlias: "",
     topic: "",
   });
-  
+
   // App state
   const [urls, setUrls] = useState<Url[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -43,10 +43,10 @@ const Dashboard = () => {
     if (!searchTerm) return urls;
     const lowerSearch = searchTerm.toLowerCase();
     return urls.filter(
-      url =>
+      (url) =>
         url.longUrl.toLowerCase().includes(lowerSearch) ||
         url.shortUrl.toLowerCase().includes(lowerSearch) ||
-        (url.topic?.toLowerCase().includes(lowerSearch))
+        url.topic?.toLowerCase().includes(lowerSearch)
     );
   }, [urls, searchTerm]);
 
@@ -56,7 +56,10 @@ const Dashboard = () => {
     []
   );
 
-  const showNotificationMessage = (message: string, success: boolean = true) => {
+  const showNotificationMessage = (
+    message: string,
+    success: boolean = true
+  ) => {
     setNotificationMessage(message);
     setIsSuccess(success);
     setShowNotification(true);
@@ -76,7 +79,7 @@ const Dashboard = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -95,7 +98,10 @@ const Dashboard = () => {
         }, {} as Record<string, string>);
 
         if (Object.keys(updates).length === 0) {
-          showNotificationMessage("Please make some changes before updating.", false);
+          showNotificationMessage(
+            "Please make some changes before updating.",
+            false
+          );
           return;
         }
 
@@ -103,7 +109,9 @@ const Dashboard = () => {
         showNotificationMessage("URL updated successfully");
       } else {
         const shortUrl = await UrlService.createShortUrl(token, formData);
-        showNotificationMessage(`URL shortened: ${window.location.origin}/${shortUrl}`);
+        showNotificationMessage(
+          `URL shortened: ${window.location.origin}/${shortUrl}`
+        );
       }
 
       // Reset form and refresh URLs
@@ -118,11 +126,11 @@ const Dashboard = () => {
 
   const handleDelete = async (shortUrl: string) => {
     if (!window.confirm("Are you sure you want to delete this URL?")) return;
-    
+
     try {
       setLoading(true);
       await UrlService.deleteUrl(token, shortUrl);
-      setUrls(prev => prev.filter(url => url.shortUrl !== shortUrl));
+      setUrls((prev) => prev.filter((url) => url.shortUrl !== shortUrl));
       showNotificationMessage("URL deleted successfully");
     } catch (err) {
       handleError(err);
@@ -152,13 +160,19 @@ const Dashboard = () => {
     showNotificationMessage(message, false);
   };
 
+  const handleRedirect = (shortUrl: string) => {
+    window.open(`http://localhost:5000/api/shorten/${shortUrl}?t=${Date.now()}`, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="max-w-4xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
       {/* Notification */}
       {showNotification && (
-        <div className={`fixed top-4 right-4 p-4 rounded shadow-lg ${
-          isSuccess ? 'bg-green-500' : 'bg-red-500'
-        } text-white transition-opacity duration-300`}>
+        <div
+          className={`fixed top-4 right-4 p-4 rounded shadow-lg ${
+            isSuccess ? "bg-green-500" : "bg-red-500"
+          } text-white transition-opacity duration-300`}
+        >
           {notificationMessage}
         </div>
       )}
@@ -166,7 +180,7 @@ const Dashboard = () => {
       <h2 className="text-2xl font-semibold mb-4">
         {editingUrl ? "Edit URL" : "Shorten a URL"}
       </h2>
-      
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
@@ -205,7 +219,11 @@ const Dashboard = () => {
             disabled={loading}
             className="flex-1 bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:opacity-50"
           >
-            {loading ? "Processing..." : editingUrl ? "Update URL" : "Shorten URL"}
+            {loading
+              ? "Processing..."
+              : editingUrl
+              ? "Update URL"
+              : "Shorten URL"}
           </button>
           {editingUrl && (
             <button
@@ -244,21 +262,35 @@ const Dashboard = () => {
               {filteredUrls.length > 0 ? (
                 filteredUrls.map((url) => (
                   <tr key={url.shortUrl} className="border-t hover:bg-gray-50">
-                    <td className="border p-2">
-                      <a
+                    <td
+                      className="border p-2 max-w-md truncate"
+                      title={url.shortUrl}
+                    >
+                      {/* <a
                         href={`http://localhost:5000/api/shorten/${url.shortUrl}?t=${Date.now()}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 underline hover:text-blue-800 transition-colors duration-150"
                       >
                         {url.shortUrl}
-                      </a>
+                      </a> */}
+                      {/* <button
+                        onClick={() => handleRedirect(url.shortUrl)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {url.shortUrl}
+                      </button> */}
+
+                      {url.shortUrl}
                     </td>
-                    <td className="border p-2 max-w-md truncate" title={url.longUrl}>
+                    <td
+                      className="border p-2 max-w-md truncate"
+                      title={url.longUrl}
+                    >
                       {url.longUrl}
                     </td>
                     <td className="border p-2">{url.topic || "N/A"}</td>
-                    <td className="border p-2">
+                    <td className="border p-2 content-center">
                       <button
                         onClick={() => handleEdit(url)}
                         className="bg-yellow-500 text-white px-2 py-1 rounded mr-2 hover:bg-yellow-600 transition-colors duration-150"
@@ -267,9 +299,15 @@ const Dashboard = () => {
                       </button>
                       <button
                         onClick={() => handleDelete(url.shortUrl)}
-                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition-colors duration-150"
+                        className="bg-red-500 text-white px-2 py-1 rounded mr-2 hover:bg-red-600 transition-colors duration-150"
                       >
                         Delete
+                      </button>
+                      <button
+                        onClick={() => handleRedirect(url.shortUrl)}
+                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors duration-150"
+                      >
+                        Open
                       </button>
                     </td>
                   </tr>
