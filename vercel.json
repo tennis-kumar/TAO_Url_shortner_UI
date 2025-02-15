@@ -1,5 +1,6 @@
 {
     "rewrites": [
-      { "source": "/app/:path*", "destination": "/index.html" }
+      { "source": "/app/:path*", "destination": "/index.html" },
+      { "source": "/auth-success", "destination": "/index.html" }
     ]
 }
