@@ -5,15 +5,8 @@
 
 ## Link: [https://tao-url-shortner-ui.vercel.app/](https://tao-url-shortner-ui.vercel.app/)
 
-## Install
-
-```sh
-npm install
-```
+### Detailed Documentation will be updated on the next-release
 
 ## Show your support
 
 Give a ⭐️ if this project helped you!
-
-***
-_This README was generated with ❤️ by [readme-md-generator](https://github.com/kefranabg/readme-md-generator)_
