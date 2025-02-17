@@ -16,12 +16,14 @@ const Login = () => {
         if (isExpired) {
           console.log("Token expired. Redirecting to login.");
           localStorage.removeItem("token");
+          navigate("/");
         } else {
           navigate("/app/dashboard");
         }
       } catch (error) {
         console.error("Invalid token. Clearing storage.");
         localStorage.removeItem("token");
+        navigate("/");
       }
     }
   }, [navigate]);
